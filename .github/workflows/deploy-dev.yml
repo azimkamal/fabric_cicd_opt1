@@ -34,33 +34,35 @@ jobs:
           echo "ACCESS_TOKEN=$TOKEN" >> $GITHUB_ENV
 
       - name: Get Git Status of Dev Workspace
+        id: git_status
         run: |
           STATUS=$(curl -s -X GET \
-            "https://api.fabric.microsoft.com/v1/workspaces/${{ secrets.DEV_WORKSPACE_ID }}/git/status" \
-            -H "Authorization: Bearer $ACCESS_TOKEN")
-          echo "Pre-deploy git status: $STATUS"
+            'https://api.fabric.microsoft.com/v1/workspaces/${{ secrets.DEV_WORKSPACE_ID }}/git/status' \
+            -H 'Authorization: Bearer '$ACCESS_TOKEN \
+            -H 'Content-Type: application/json')
+          echo "GIT_STATUS=$STATUS" >> $GITHUB_ENV
+          echo $STATUS
 
       - name: UpdateFromGit — Sync Dev Workspace
         run: |
-          COMMIT_SHA="${{ github.sha }}"
-          PAYLOAD=$(python3 -c "
-          import json
-          payload = {
-            'workspaceHead': {
-              'sourceControlVersion': {
-                'commitId': '$COMMIT_SHA'
+          curl -s -X POST \
+            'https://api.fabric.microsoft.com/v1/workspaces/${{ secrets.DEV_WORKSPACE_ID }}/git/updateFromGit' \
+            -H 'Authorization: Bearer '$ACCESS_TOKEN \
+            -H 'Content-Type: application/json' \
+            -d '{
+              "workspaceHead": {
+                "sourceControlVersion": {
+                  "commitId": "${{ github.sha }}"
+                }
+              },
+              "options": {
+                "allowOverrideItems": true
               }
-            },
-            'options': {
-              'allowOverrideItems': True
-            }
-          }
-          print(json.dumps(payload))
-          ")
+            }'
 
       - name: Verify Sync Completed
         run: |
           STATUS=$(curl -s -X GET \
-            "https://api.fabric.microsoft.com/v1/workspaces/${{ secrets.DEV_WORKSPACE_ID }}/git/status" \
-            -H "Authorization: Bearer $ACCESS_TOKEN")
+            'https://api.fabric.microsoft.com/v1/workspaces/${{ secrets.DEV_WORKSPACE_ID }}/git/status' \
+            -H 'Authorization: Bearer '$ACCESS_TOKEN)
           echo "Post-sync status: $STATUS"
