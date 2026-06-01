@@ -2,6 +2,7 @@
 # Trigger: PR merged into test branch
 # Purpose: Deploy to Test workspace — requires approval gate
 
+# .github/workflows/deploy-test.yml
 name: Deploy to Test
 
 on:
@@ -15,14 +16,13 @@ jobs:
   deploy-test:
     name: Sync Test Workspace from test branch
     runs-on: ubuntu-latest
-    environment: test   # <-- approval gate configured in GitHub Environments
+    environment: test
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Get Fabric Access Token via Service Principal
-        id: get_token
         run: |
           TOKEN=$(curl -s -X POST \
             https://login.microsoftonline.com/${{ secrets.AZURE_TENANT_ID }}/oauth2/v2.0/token \
@@ -33,33 +33,52 @@ jobs:
             | jq -r '.access_token')
           echo "ACCESS_TOKEN=$TOKEN" >> $GITHUB_ENV
 
-      - name: Get Git Status of Test Workspace
+      - name: Initialize Connection — Get workspaceHead and remoteCommitHash
         run: |
-          STATUS=$(curl -s -X GET \
-            'https://api.fabric.microsoft.com/v1/workspaces/${{ secrets.TEST_WORKSPACE_ID }}/git/status' \
-            -H 'Authorization: Bearer '$ACCESS_TOKEN)
-          echo "Pre-deploy git status: $STATUS"
+          INIT=$(curl -s -X POST \
+            "https://api.fabric.microsoft.com/v1/workspaces/${{ secrets.TEST_WORKSPACE_ID }}/git/initializeConnection" \
+            -H "Authorization: Bearer $ACCESS_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d '{}')
+          echo "initializeConnection response: $INIT"
+          WORKSPACE_HEAD=$(echo $INIT | jq -r '.workspaceHead // empty')
+          REMOTE_COMMIT=$(echo $INIT | jq -r '.remoteCommitHash // empty')
+          echo "workspaceHead: $WORKSPACE_HEAD"
+          echo "remoteCommitHash: $REMOTE_COMMIT"
+          echo "WORKSPACE_HEAD=$WORKSPACE_HEAD" >> $GITHUB_ENV
+          echo "REMOTE_COMMIT=$REMOTE_COMMIT" >> $GITHUB_ENV
 
       - name: UpdateFromGit — Sync Test Workspace
         run: |
+          PAYLOAD=$(python3 -c "
+          import json
+          payload = {
+            'workspaceHead': '$WORKSPACE_HEAD',
+            'remoteCommitHash': '$REMOTE_COMMIT',
+            'conflictResolution': {
+              'conflictResolutionType': 'Workspace',
+              'conflictResolutionPolicy': 'PreferWorkspace'
+            },
+            'options': {
+              'allowOverrideItems': True
+            }
+          }
+          print(json.dumps(payload))
+          ")
+
+          echo "Payload: $PAYLOAD"
+
           RESPONSE=$(curl -s -w '\n%{http_code}' -X POST \
-            'https://api.fabric.microsoft.com/v1/workspaces/${{ secrets.TEST_WORKSPACE_ID }}/git/updateFromGit' \
-            -H 'Authorization: Bearer '$ACCESS_TOKEN \
-            -H 'Content-Type: application/json' \
-            -d '{
-              "workspaceHead": {
-                "sourceControlVersion": {
-                  "commitId": "${{ github.sha }}"
-                }
-              },
-              "options": {
-                "allowOverrideItems": true
-              }
-            }')
+            "https://api.fabric.microsoft.com/v1/workspaces/${{ secrets.TEST_WORKSPACE_ID }}/git/updateFromGit" \
+            -H "Authorization: Bearer $ACCESS_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "$PAYLOAD")
+
           HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
           BODY=$(echo "$RESPONSE" | head -n-1)
           echo "Response: $BODY"
           echo "HTTP Status: $HTTP_CODE"
+
           if [ "$HTTP_CODE" != "200" ] && [ "$HTTP_CODE" != "202" ]; then
             echo "Deployment failed with HTTP $HTTP_CODE"
             exit 1
@@ -68,13 +87,13 @@ jobs:
       - name: Trigger ETL Pipeline in Test
         run: |
           curl -s -X POST \
-            'https://api.fabric.microsoft.com/v1/workspaces/${{ secrets.TEST_WORKSPACE_ID }}/items/${{ secrets.TEST_ETL_PIPELINE_ID }}/jobs/instances?jobType=Pipeline' \
-            -H 'Authorization: Bearer '$ACCESS_TOKEN \
-            -H 'Content-Type: application/json'
+            "https://api.fabric.microsoft.com/v1/workspaces/${{ secrets.TEST_WORKSPACE_ID }}/items/${{ secrets.TEST_ETL_PIPELINE_ID }}/jobs/instances?jobType=Pipeline" \
+            -H "Authorization: Bearer $ACCESS_TOKEN" \
+            -H "Content-Type: application/json"
 
       - name: Verify Post-Deploy Git Status
         run: |
           STATUS=$(curl -s -X GET \
-            'https://api.fabric.microsoft.com/v1/workspaces/${{ secrets.TEST_WORKSPACE_ID }}/git/status' \
-            -H 'Authorization: Bearer '$ACCESS_TOKEN)
+            "https://api.fabric.microsoft.com/v1/workspaces/${{ secrets.TEST_WORKSPACE_ID }}/git/status" \
+            -H "Authorization: Bearer $ACCESS_TOKEN")
           echo "Post-deploy status: $STATUS"
