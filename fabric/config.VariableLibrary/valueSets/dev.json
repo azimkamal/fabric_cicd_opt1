@@ -9,6 +9,10 @@
     {
       "name": "env",
       "value": "dev"
+    },
+    {
+      "name": "workspace_id",
+      "value": "284cbbbd-3f62-4535-befa-acbef052fdf7"
     }
   ]
 }

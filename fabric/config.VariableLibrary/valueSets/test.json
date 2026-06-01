@@ -9,6 +9,10 @@
     {
       "name": "env",
       "value": "test"
+    },
+    {
+      "name": "workspace_id",
+      "value": "cac48a0a-93f4-4977-a247-13f461dd93c4"
     }
   ]
 }
