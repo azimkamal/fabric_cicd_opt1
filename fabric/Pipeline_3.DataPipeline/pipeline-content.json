@@ -1,0 +1,59 @@
+{
+  "properties": {
+    "activities": [
+      {
+        "name": "Lookup1",
+        "type": "Lookup",
+        "dependsOn": [],
+        "policy": {
+          "timeout": "0.12:00:00",
+          "retry": 0,
+          "retryIntervalInSeconds": 30,
+          "secureOutput": false,
+          "secureInput": false
+        },
+        "typeProperties": {
+          "source": {
+            "type": "LakehouseTableSource",
+            "sqlReaderQuery": "SELECT * FROM dbo.dummy_lookup_test",
+            "partitionOption": "None"
+          },
+          "firstRowOnly": false,
+          "datasetSettings": {
+            "annotations": [],
+            "connectionSettings": {
+              "name": "b96db67f_ad3a_4667_870c_0b3ec93a4c5e",
+              "properties": {
+                "annotations": [],
+                "type": "Lakehouse",
+                "typeProperties": {
+                  "workspaceId": "@pipeline().libraryVariables.config_workspace_id",
+                  "artifactId": "@pipeline().libraryVariables.config_lh_source_id",
+                  "rootFolder": "Tables"
+                },
+                "externalReferences": {
+                  "connection": "7b532920-98f3-42bd-90fd-1a2eb277243e"
+                }
+              }
+            },
+            "type": "LakehouseTable",
+            "schema": [],
+            "typeProperties": {}
+          }
+        }
+      }
+    ],
+    "libraryVariables": {
+      "config_lh_source_id": {
+        "type": "String",
+        "variableName": "lh_source_id",
+        "libraryName": "config"
+      },
+      "config_workspace_id": {
+        "type": "String",
+        "variableName": "workspace_id",
+        "libraryName": "config"
+      }
+    }
+  }
+}

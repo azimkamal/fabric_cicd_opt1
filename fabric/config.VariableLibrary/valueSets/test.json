@@ -1,0 +1,18 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/variableLibrary/definition/valueSet/1.0.0/schema.json",
+  "name": "test",
+  "variableOverrides": [
+    {
+      "name": "lh_source_id",
+      "value": "a0e3dbd3-9c28-41b5-ad32-352ac10afeea"
+    },
+    {
+      "name": "env",
+      "value": "test"
+    },
+    {
+      "name": "workspace_id",
+      "value": "cac48a0a-93f4-4977-a247-13f461dd93c4"
+    }
+  ]
+}
