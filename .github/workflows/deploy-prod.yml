@@ -33,23 +33,27 @@ jobs:
             | jq -r '.access_token')
           echo "ACCESS_TOKEN=$TOKEN" >> $GITHUB_ENV
 
-      - name: Get Git Status of Prod Workspace
+      - name: Get Git Status — Extract workspaceHead and remoteCommitHash
         run: |
           STATUS=$(curl -s -X GET \
             "https://api.fabric.microsoft.com/v1/workspaces/${{ secrets.PROD_WORKSPACE_ID }}/git/status" \
             -H "Authorization: Bearer $ACCESS_TOKEN")
-          echo "Pre-deploy git status: $STATUS"
+          echo "Git status response: $STATUS"
+          WORKSPACE_HEAD=$(echo $STATUS | jq -r '.workspaceHead // empty')
+          REMOTE_COMMIT=$(echo $STATUS | jq -r '.remoteCommitHash // empty')
+          echo "WORKSPACE_HEAD=$WORKSPACE_HEAD" >> $GITHUB_ENV
+          echo "REMOTE_COMMIT=$REMOTE_COMMIT" >> $GITHUB_ENV
 
       - name: UpdateFromGit — Sync Prod Workspace
         run: |
-          COMMIT_SHA="${{ github.sha }}"
           PAYLOAD=$(python3 -c "
           import json
           payload = {
-            'workspaceHead': {
-              'sourceControlVersion': {
-                'commitId': '$COMMIT_SHA'
-              }
+            'workspaceHead': '$WORKSPACE_HEAD',
+            'remoteCommitHash': '$REMOTE_COMMIT',
+            'conflictResolution': {
+              'conflictResolutionType': 'Workspace',
+              'conflictResolutionPolicy': 'PreferWorkspace'
             },
             'options': {
               'allowOverrideItems': True
