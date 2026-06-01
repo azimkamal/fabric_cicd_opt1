@@ -1,0 +1,52 @@
+# .github/workflows/deploy-dev.yml
+name: Deploy to Dev
+
+on:
+  push:
+    branches:
+      - dev
+    paths:
+      - 'fabric/**'
+
+jobs:
+  deploy:
+    name: Sync Dev Workspace
+    runs-on: ubuntu-latest
+    environment: dev
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Get Access Token
+        id: get_token
+        run: |
+          TOKEN=$(curl -s -X POST \
+            https://login.microsoftonline.com/${{ secrets.AZURE_TENANT_ID }}/oauth2/v2.0/token \
+            -d 'grant_type=client_credentials' \
+            -d 'client_id=${{ secrets.AZURE_CLIENT_ID }}' \
+            -d 'client_secret=${{ secrets.AZURE_CLIENT_SECRET }}' \
+            -d 'scope=https://api.fabric.microsoft.com/.default' \
+            | jq -r '.access_token')
+          echo "ACCESS_TOKEN=$TOKEN" >> $GITHUB_ENV
+
+      - name: Get Latest Commit SHA
+        id: get_sha
+        run: echo "COMMIT_SHA=${{ github.sha }}" >> $GITHUB_ENV
+
+      - name: Call UpdateFromGit — Dev Workspace
+        run: |
+          curl -s -X POST \
+            'https://api.fabric.microsoft.com/v1/workspaces/${{ secrets.DEV_WORKSPACE_ID }}/git/updateFromGit' \
+            -H 'Authorization: Bearer '$ACCESS_TOKEN \
+            -H 'Content-Type: application/json' \
+            -d '{
+              "workspaceHead": {
+                "sourceControlVersion": {
+                  "commitId": "'$COMMIT_SHA'"
+                }
+              },
+              "options": {
+                "allowOverrideItems": true
+              }
+            }'
