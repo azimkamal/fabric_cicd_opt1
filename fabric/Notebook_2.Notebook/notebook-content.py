@@ -34,12 +34,14 @@ print(f"Workspace ID : {WORKSPACE_ID}")
 print(f"Lakehouse ID : {LAKEHOUSE_ID}")
 
 # ── Schema & Table ────────────────────────────────────────────────────────────
+SCHEMA     = "dbo"
 TABLE_NAME = "dummy_lookup_test"
 
-# ── Base path ─────────────────────────────────────────────────────────────────
-BASE_PATH = f"abfss://{WORKSPACE_ID}@onelake.dfs.fabric.microsoft.com/{LAKEHOUSE_ID}/Tables"
+# ── Paths ─────────────────────────────────────────────────────────────────────
+TABLES_BASE = f"abfss://{WORKSPACE_ID}@onelake.dfs.fabric.microsoft.com/{LAKEHOUSE_ID}/Tables"
+TABLE_PATH  = f"{TABLES_BASE}/{SCHEMA}/{TABLE_NAME}"
 
-print(f"Base path    : {BASE_PATH}")
+print(f"Table path   : {TABLE_PATH}")
 
 # ── Dummy Data ────────────────────────────────────────────────────────────────
 data = [
@@ -59,27 +61,23 @@ schema = StructType([
     StructField("created_date", DateType(),    True),
 ])
 
-# ── Write ─────────────────────────────────────────────────────────────────────
+# ── Write Delta files ─────────────────────────────────────────────────────────
 df = spark.createDataFrame(data, schema=schema)
 
 df.write \
   .format("delta") \
   .mode("overwrite") \
   .option("overwriteSchema", "true") \
-  .save(f"{BASE_PATH}/{TABLE_NAME}")
+  .save(TABLE_PATH)
 
-print(f"✅ [{ENVIRONMENT}] Table [{TABLE_NAME}] written with {df.count()} rows.")
+print(f"✅ [{ENVIRONMENT}] Written {df.count()} rows to {TABLE_PATH}")
 
+# ── Read back via abfss ───────────────────────────────────────────────────────
+df_read = spark.read.format("delta").load(TABLE_PATH)
+df_read.createOrReplaceTempView("vw_dummy_lookup_test")
 
-# METADATA ********************
-
-# META {
-# META   "language": "python",
-# META   "language_group": "synapse_pyspark"
-# META }
-
-# CELL ********************
-
+print(f"✅ [{ENVIRONMENT}] Read back {df_read.count()} rows")
+spark.sql("SELECT * FROM vw_dummy_lookup_test").show()
 
 # METADATA ********************
 
