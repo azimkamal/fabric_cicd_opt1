@@ -11,6 +11,8 @@
 
 # CELL ********************
 
+# Welcome to your new notebook
+# Type here in the cell editor to add code!
 print('Hello from DEV environment')
 print('This notebook was deployed via Option 1 CI/CD')
 
@@ -24,6 +26,8 @@ print('This notebook was deployed via Option 1 CI/CD')
 
 # CELL ********************
 
+print('Hello from DEV environment')
+print('This notebook was deployed via Option 1 CI/CD')
 # Welcome to your new notebook
 # Type here in the cell editor to add code!
 

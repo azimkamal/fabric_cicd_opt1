@@ -1,0 +1,39 @@
+# .github/workflows/enforce-promotion-path.yml
+# Purpose: Ensure test branch only receives PRs from dev,
+#          and main branch only receives PRs from test.
+
+name: Enforce Promotion Path
+
+on:
+  pull_request:
+    branches:
+      - test
+      - main
+
+jobs:
+  check-source-branch:
+    name: Validate Source Branch
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check promotion path
+        run: |
+          SOURCE=${{ github.head_ref }}
+          TARGET=${{ github.base_ref }}
+
+          echo "Source branch: $SOURCE"
+          echo "Target branch: $TARGET"
+
+          if [ "$TARGET" = "test" ] && [ "$SOURCE" != "dev" ]; then
+            echo "ERROR: PRs to test must come from dev branch only."
+            echo "Source was: $SOURCE"
+            exit 1
+          fi
+
+          if [ "$TARGET" = "main" ] && [ "$SOURCE" != "test" ]; then
+            echo "ERROR: PRs to main must come from test branch only."
+            echo "Source was: $SOURCE"
+            exit 1
+          fi
+
+          echo "Promotion path is valid. Proceeding."
