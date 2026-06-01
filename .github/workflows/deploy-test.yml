@@ -42,24 +42,33 @@ jobs:
 
       - name: UpdateFromGit — Sync Test Workspace
         run: |
-          RESPONSE=$(curl -s -w '\n%{http_code}' -X POST \
-            'https://api.fabric.microsoft.com/v1/workspaces/${{ secrets.TEST_WORKSPACE_ID }}/git/updateFromGit' \
-            -H 'Authorization: Bearer '$ACCESS_TOKEN \
-            -H 'Content-Type: application/json' \
-            -d '{
-              "workspaceHead": {
-                "sourceControlVersion": {
-                  "commitId": "${{ github.sha }}"
-                }
-              },
-              "options": {
-                "allowOverrideItems": true
+          COMMIT_SHA="${{ github.sha }}"
+
+          PAYLOAD=$(cat <<EOF
+          {
+            "workspaceHead": {
+              "sourceControlVersion": {
+                "commitId": "$COMMIT_SHA"
               }
-            }')
+            },
+            "options": {
+              "allowOverrideItems": true
+            }
+          }
+          EOF
+          )
+
+          RESPONSE=$(curl -s -w '\n%{http_code}' -X POST \
+            "https://api.fabric.microsoft.com/v1/workspaces/${{ secrets.TEST_WORKSPACE_ID }}/git/updateFromGit" \
+            -H "Authorization: Bearer $ACCESS_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "$PAYLOAD")
+
           HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
           BODY=$(echo "$RESPONSE" | head -n-1)
           echo "Response: $BODY"
           echo "HTTP Status: $HTTP_CODE"
+
           if [ "$HTTP_CODE" != "200" ] && [ "$HTTP_CODE" != "202" ]; then
             echo "Deployment failed with HTTP $HTTP_CODE"
             exit 1
