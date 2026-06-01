@@ -1,4 +1,7 @@
 # .github/workflows/deploy-dev.yml
+# Trigger: PR merged into dev branch
+# Purpose: Auto-sync Dev workspace from dev branch (optional convenience)
+
 name: Deploy to Dev
 
 on:
@@ -9,16 +12,16 @@ on:
       - 'fabric/**'
 
 jobs:
-  deploy:
-    name: Sync Dev Workspace
+  deploy-dev:
+    name: Sync Dev Workspace from dev branch
     runs-on: ubuntu-latest
     environment: dev
 
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Get Access Token
+      - name: Get Fabric Access Token via Service Principal
         id: get_token
         run: |
           TOKEN=$(curl -s -X POST \
@@ -30,23 +33,50 @@ jobs:
             | jq -r '.access_token')
           echo "ACCESS_TOKEN=$TOKEN" >> $GITHUB_ENV
 
-      - name: Get Latest Commit SHA
-        id: get_sha
-        run: echo "COMMIT_SHA=${{ github.sha }}" >> $GITHUB_ENV
-
-      - name: Call UpdateFromGit — Dev Workspace
+      - name: Get Git Status of Dev Workspace
         run: |
-          curl -s -X POST \
-            'https://api.fabric.microsoft.com/v1/workspaces/${{ secrets.DEV_WORKSPACE_ID }}/git/updateFromGit' \
-            -H 'Authorization: Bearer '$ACCESS_TOKEN \
-            -H 'Content-Type: application/json' \
-            -d '{
-              "workspaceHead": {
-                "sourceControlVersion": {
-                  "commitId": "'$COMMIT_SHA'"
-                }
-              },
-              "options": {
-                "allowOverrideItems": true
+          STATUS=$(curl -s -X GET \
+            "https://api.fabric.microsoft.com/v1/workspaces/${{ secrets.DEV_WORKSPACE_ID }}/git/status" \
+            -H "Authorization: Bearer $ACCESS_TOKEN")
+          echo "Pre-deploy git status: $STATUS"
+
+      - name: UpdateFromGit — Sync Dev Workspace
+        run: |
+          COMMIT_SHA="${{ github.sha }}"
+
+          PAYLOAD=$(cat <<EOF
+          {
+            "workspaceHead": {
+              "sourceControlVersion": {
+                "commitId": "$COMMIT_SHA"
               }
-            }'
+            },
+            "options": {
+              "allowOverrideItems": true
+            }
+          }
+          EOF
+          )
+
+          RESPONSE=$(curl -s -w '\n%{http_code}' -X POST \
+            "https://api.fabric.microsoft.com/v1/workspaces/${{ secrets.DEV_WORKSPACE_ID }}/git/updateFromGit" \
+            -H "Authorization: Bearer $ACCESS_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "$PAYLOAD")
+
+          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+          BODY=$(echo "$RESPONSE" | head -n-1)
+          echo "Response: $BODY"
+          echo "HTTP Status: $HTTP_CODE"
+
+          if [ "$HTTP_CODE" != "200" ] && [ "$HTTP_CODE" != "202" ]; then
+            echo "Deployment failed with HTTP $HTTP_CODE"
+            exit 1
+          fi
+
+      - name: Verify Sync Completed
+        run: |
+          STATUS=$(curl -s -X GET \
+            "https://api.fabric.microsoft.com/v1/workspaces/${{ secrets.DEV_WORKSPACE_ID }}/git/status" \
+            -H "Authorization: Bearer $ACCESS_TOKEN")
+          echo "Post-sync status: $STATUS"
