@@ -33,14 +33,18 @@ jobs:
             | jq -r '.access_token')
           echo "ACCESS_TOKEN=$TOKEN" >> $GITHUB_ENV
 
-      - name: Get Git Status — Extract workspaceHead and remoteCommitHash
+      - name: Initialize Connection — Get workspaceHead and remoteCommitHash
         run: |
-          STATUS=$(curl -s -X GET \
-            "https://api.fabric.microsoft.com/v1/workspaces/${{ secrets.DEV_WORKSPACE_ID }}/git/status" \
-            -H "Authorization: Bearer $ACCESS_TOKEN")
-          echo "Git status response: $STATUS"
-          WORKSPACE_HEAD=$(echo $STATUS | jq -r '.workspaceHead // empty')
-          REMOTE_COMMIT=$(echo $STATUS | jq -r '.remoteCommitHash // empty')
+          INIT=$(curl -s -X POST \
+            "https://api.fabric.microsoft.com/v1/workspaces/${{ secrets.DEV_WORKSPACE_ID }}/git/initializeConnection" \
+            -H "Authorization: Bearer $ACCESS_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d '{}')
+          echo "initializeConnection response: $INIT"
+          WORKSPACE_HEAD=$(echo $INIT | jq -r '.workspaceHead // empty')
+          REMOTE_COMMIT=$(echo $INIT | jq -r '.remoteCommitHash // empty')
+          echo "workspaceHead: $WORKSPACE_HEAD"
+          echo "remoteCommitHash: $REMOTE_COMMIT"
           echo "WORKSPACE_HEAD=$WORKSPACE_HEAD" >> $GITHUB_ENV
           echo "REMOTE_COMMIT=$REMOTE_COMMIT" >> $GITHUB_ENV
 
