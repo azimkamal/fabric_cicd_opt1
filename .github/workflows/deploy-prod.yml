@@ -2,6 +2,7 @@
 # Trigger: PR merged into main branch
 # Purpose: Deploy to Prod workspace — requires approval gate
 
+# .github/workflows/deploy-prod.yml
 name: Deploy to Prod
 
 on:
@@ -15,14 +16,13 @@ jobs:
   deploy-prod:
     name: Sync Prod Workspace from main branch
     runs-on: ubuntu-latest
-    environment: prod   # <-- approval gate configured in GitHub Environments
+    environment: prod
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Get Fabric Access Token via Service Principal
-        id: get_token
         run: |
           TOKEN=$(curl -s -X POST \
             https://login.microsoftonline.com/${{ secrets.AZURE_TENANT_ID }}/oauth2/v2.0/token \
@@ -36,27 +36,29 @@ jobs:
       - name: Get Git Status of Prod Workspace
         run: |
           STATUS=$(curl -s -X GET \
-            'https://api.fabric.microsoft.com/v1/workspaces/${{ secrets.PROD_WORKSPACE_ID }}/git/status' \
-            -H 'Authorization: Bearer '$ACCESS_TOKEN)
+            "https://api.fabric.microsoft.com/v1/workspaces/${{ secrets.PROD_WORKSPACE_ID }}/git/status" \
+            -H "Authorization: Bearer $ACCESS_TOKEN")
           echo "Pre-deploy git status: $STATUS"
 
       - name: UpdateFromGit — Sync Prod Workspace
         run: |
           COMMIT_SHA="${{ github.sha }}"
-
-          PAYLOAD=$(cat <<EOF
-          {
-            "workspaceHead": {
-              "sourceControlVersion": {
-                "commitId": "$COMMIT_SHA"
+          PAYLOAD=$(python3 -c "
+          import json
+          payload = {
+            'workspaceHead': {
+              'sourceControlVersion': {
+                'commitId': '$COMMIT_SHA'
               }
             },
-            "options": {
-              "allowOverrideItems": true
+            'options': {
+              'allowOverrideItems': True
             }
           }
-          EOF
-          )
+          print(json.dumps(payload))
+          ")
+
+          echo "Payload: $PAYLOAD"
 
           RESPONSE=$(curl -s -w '\n%{http_code}' -X POST \
             "https://api.fabric.microsoft.com/v1/workspaces/${{ secrets.PROD_WORKSPACE_ID }}/git/updateFromGit" \
@@ -77,13 +79,13 @@ jobs:
       - name: Trigger ETL Pipeline in Prod
         run: |
           curl -s -X POST \
-            'https://api.fabric.microsoft.com/v1/workspaces/${{ secrets.PROD_WORKSPACE_ID }}/items/${{ secrets.PROD_ETL_PIPELINE_ID }}/jobs/instances?jobType=Pipeline' \
-            -H 'Authorization: Bearer '$ACCESS_TOKEN \
-            -H 'Content-Type: application/json'
+            "https://api.fabric.microsoft.com/v1/workspaces/${{ secrets.PROD_WORKSPACE_ID }}/items/${{ secrets.PROD_ETL_PIPELINE_ID }}/jobs/instances?jobType=Pipeline" \
+            -H "Authorization: Bearer $ACCESS_TOKEN" \
+            -H "Content-Type: application/json"
 
       - name: Verify Post-Deploy Git Status
         run: |
           STATUS=$(curl -s -X GET \
-            'https://api.fabric.microsoft.com/v1/workspaces/${{ secrets.PROD_WORKSPACE_ID }}/git/status' \
-            -H 'Authorization: Bearer '$ACCESS_TOKEN)
+            "https://api.fabric.microsoft.com/v1/workspaces/${{ secrets.PROD_WORKSPACE_ID }}/git/status" \
+            -H "Authorization: Bearer $ACCESS_TOKEN")
           echo "Post-deploy status: $STATUS"
